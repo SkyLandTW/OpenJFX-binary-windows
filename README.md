@@ -18,13 +18,152 @@ Installation
 Build Steps
 -----------
 
-Source from [OpenJFX 8u60](http://hg.openjdk.java.net/openjfx/8u60/rt/)
+Source from [OpenJFX 8u172-b11](http://hg.openjdk.java.net/openjfx/8u-dev/rt/rev/ec63c85958b1)
 
-With:
+#### Requirements
+
+ - OpenJDK: I use [Zulu](https://www.azul.com/downloads/zulu/zulu-windows/) 8u172 client (.MSI)
  - Cygwin (x64)
- - Microsoft Visual C++ 2010 Express SP1
- - Microsoft Windows SDK for Windows 7.1
- - Microsoft DirectX SDK (June 2010)
- - Gradle 2.8
+       * openssh
+       * bison
+       * flex
+       * g++
+       * gperf
+       * make
+       * makedepend
+       * mercurial
+       * perl
+       * zip
+       * unzip
 
-See [Building OpenJFX](https://wiki.openjdk.java.net/display/OpenJFX/Building+OpenJFX#BuildingOpenJFX-Windows)
+ - Microsoft Visual C++ 2010 Express SP1
+
+   or Microsoft Visual Studio 2010, and then SP1
+
+ - Microsoft Windows SDK for Windows 7.1
+
+   if setup.exe fails, download the ISO, manually install every MSI packages inside, and:
+
+       1. Create symbolic link *C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1* to *C:\Program Files\Microsoft SDKs\Windows\v7.1*, if the latter is created.
+       2. Edit *C:\Program Files (x86)\Microsoft Visual Studio 10.0\Common7\Tools\VCVarsQueryRegistry.bat*, replace _\v7.0A_ with _\v7.1_
+
+ - Microsoft DirectX SDK (June 2010): DXSDK_Jun10.exe
+ - Gradle 2.8
+ - Ant 1.8.4
+ - CMake windows (NOT cygwin version), version 3.11.1 x64 works
+
+#### Source changes
+
+In _modules\media\src\main\native\gstreamer\3rd_party\glib\glib-2.28.8\glib\gmain.c_
+
+Change line 3692, from
+
+      GSource *source = g_source_new (&g_timeout_funcs, sizeof (GTimeoutSource));
+    #ifdef GSTREAMER_LITE
+      if (source == NULL)
+          return NULL;
+    #endif // GSTREAMER_LITE
+      GTimeoutSource *timeout_source = (GTimeoutSource *)source;
+
+To
+
+      GSource *source = g_source_new (&g_timeout_funcs, sizeof (GTimeoutSource));
+      GTimeoutSource *timeout_source = (GTimeoutSource *)source;
+    #ifdef GSTREAMER_LITE
+      if (source == NULL)
+          return NULL;
+    #endif // GSTREAMER_LITE
+
+(move variable declaration to the beginning; workaround for C89 limit in VC++ 2010)
+
+
+In _modules\media\src\main\native\gstreamer\gstreamer-lite\gstreamer\plugins\elements\gstqueue.c_
+
+Go the last function gst_queue_change_state() at the bottom of the file, add "{" and "}":
+
+    { // ADD THIS BRACE
+    GstStateChangeReturn ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+
+    if (ret == GST_STATE_CHANGE_FAILURE)
+        return ret;
+
+    switch (transition)
+    {
+        case GST_STATE_CHANGE_READY_TO_NULL:
+            GST_QUEUE_MUTEX_LOCK (queue);
+            queue->srcresult = GST_FLOW_WRONG_STATE; // make sure we stop _loop task
+            g_cond_signal (queue->item_add);
+            GST_QUEUE_MUTEX_UNLOCK (queue);
+            break;
+        default:
+            break;
+    }
+    return ret;
+    } // ADD THIS BRACE
+
+(marks the area as a new block from which the "ret" variable may be declared; also workaround for the same C89 limit)
+
+#### Build file changes
+
+In _buildSrc\win.gradle_, go to line 91, insert before the "if" block, in case the SDK directories are changed by scripts:
+
+    WINDOWS_SDK_DIR = "C:/Program Files (x86)/Microsoft SDKs/Windows/v7.1"
+    WINDOWS_DXSDK_DIR = "C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)"
+    
+    if (WINDOWS_SDK_DIR == null || WINDOWS_SDK_DIR == "") {
+        throw new GradleException("FAIL: WINSDK_DIR not defined");
+    }
+
+Copy _gradle.properties.template_ to _gradle.properties_, line 45, uncomment:
+
+    COMPILE_WEBKIT = true
+    COMPILE_MEDIA = true
+
+and line 62, uncomment:
+
+    BUILD_SRC_ZIP = true
+
+#### Build!
+
+1. Start *Start Visual Studio x64 Win64 Command Prompt (2010)*
+2. Inside the above console, executes:
+
+    set DXSDK_DIR=C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)
+    set WINSDK_DIR=C:/Program Files (x86)/Microsoft SDKs/Windows/v7.1
+
+    # assume cygwin is at C:\cygwin64, replace with yours
+    C:\cygwin64\bin\mintty.exe -i /Cygwin-Terminal.ico -
+
+3. Inside the cygwin console, executes:
+
+    # assume ant is at C:\apache-ant-1.8.4, replace with yours
+    export PATH=$PATH:/cygdrive/c/apache-ant-1.8.4/bin
+
+    # assume gradle is at C:\gradle-1.8, replace with yours
+    export PATH=$PATH:/cygdrive/c/gradle-1.8/bin
+
+    # assume cmake is at C:\cmake-3.11.1-win64-x64, replace with yours.
+    export PATH=/cygdrive/c/cmake-3.11.1-win64-x64/bin:$PATH
+    # note it needs to be in front in order to override cygwin's cmake, if it exists
+
+4. cd to the rt directory, run gradle. Or step by step in case there are failures:
+
+    gradle tasks
+    gradle base:build -x test
+    gradle graphics:build -x test
+    gradle controls:build -x test
+    gradle extensions:build -x test
+    gradle swing:build -x test
+    gradle swt:build -x test
+    gradle fxml:build -x test
+    gradle media:build -x test       # native compiling, prone to fail
+    gradle web:build -x test         # native compiling, prone to fail, take forever
+    gradle builders:build -x test
+    gradle jmx:build -x test
+    gradle fxpackager:build -x test  # native compiling
+
+    # finalize everything
+    gradle all -x test -x apps
+    gradle src -x test
+
+5. The result is at build\bundles\javafx-sdk-overlay.zip
