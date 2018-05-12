@@ -20,7 +20,7 @@ Build Steps
 
 Source from [OpenJFX 8u172-b11](http://hg.openjdk.java.net/openjfx/8u-dev/rt/rev/ec63c85958b1)
 
-#### Requirements
+### Requirements
 
  - OpenJDK: I use [Zulu](https://www.azul.com/downloads/zulu/zulu-windows/) 8u172 client (.MSI)
  - Cygwin (x64)
@@ -44,17 +44,17 @@ Source from [OpenJFX 8u172-b11](http://hg.openjdk.java.net/openjfx/8u-dev/rt/rev
 
    if setup.exe fails, download the ISO, manually install every MSI packages inside, and:
 
-       1. Create symbolic link *C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1* to *C:\Program Files\Microsoft SDKs\Windows\v7.1*, if the latter is created.
-       2. Edit *C:\Program Files (x86)\Microsoft Visual Studio 10.0\Common7\Tools\VCVarsQueryRegistry.bat*, replace _\v7.0A_ with _\v7.1_
+   1. Create symbolic link *C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1* to *C:\Program Files\Microsoft SDKs\Windows\v7.1*, if the latter is created.
+   2. Edit *C:\Program Files (x86)\Microsoft Visual Studio 10.0\Common7\Tools\VCVarsQueryRegistry.bat*, replace _\v7.0A_ with _\v7.1_
 
  - Microsoft DirectX SDK (June 2010): DXSDK_Jun10.exe
  - Gradle 2.8
  - Ant 1.8.4
  - CMake windows (NOT cygwin version), version 3.11.1 x64 works
 
-#### Source changes
+### Source changes
 
-###### _modules\media\src\main\native\gstreamer\3rd_party\glib\glib-2.28.8\glib\gmain.c_
+##### _modules\media\src\main\native\gstreamer\3rd_party\glib\glib-2.28.8\glib\gmain.c_
 
 Change line 3692, from
 
@@ -80,7 +80,7 @@ To
 
 (move variable declaration to the beginning; workaround for C89 limit in VC++ 2010)
 
-###### _modules\media\src\main\native\gstreamer\gstreamer-lite\gstreamer\plugins\elements\gstqueue.c_
+##### _modules\media\src\main\native\gstreamer\gstreamer-lite\gstreamer\plugins\elements\gstqueue.c_
 
 Go the last function gst_queue_change_state() at the bottom of the file, add "{" and "}":
 
@@ -108,9 +108,9 @@ Go the last function gst_queue_change_state() at the bottom of the file, add "{"
 
 (marks the area as a new block from which the "ret" variable may be declared; also workaround for the same C89 limit)
 
-#### Build file changes
+### Build file changes
 
-###### _buildSrc\win.gradle_
+##### _buildSrc\win.gradle_
 
 go to line 91, insert before the "if" block, in case the SDK directories are changed by scripts:
 
@@ -123,7 +123,7 @@ if (WINDOWS_SDK_DIR == null || WINDOWS_SDK_DIR == "") {
 }
 ```
 
-###### _gradle.properties_
+##### _gradle.properties_
 
 copy _gradle.properties.template_ to _gradle.properties_, go to line 45, uncomment:
 
@@ -138,7 +138,7 @@ and line 62, uncomment:
 BUILD_SRC_ZIP = true
 ```
 
-#### Build!
+### Build!
 
 1. Start *Start Visual Studio x64 Win64 Command Prompt (2010)*
 2. Inside the above console, executes:
