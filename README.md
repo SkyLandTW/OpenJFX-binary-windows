@@ -54,33 +54,37 @@ Source from [OpenJFX 8u172-b11](http://hg.openjdk.java.net/openjfx/8u-dev/rt/rev
 
 #### Source changes
 
-In _modules\media\src\main\native\gstreamer\3rd_party\glib\glib-2.28.8\glib\gmain.c_
+###### _modules\media\src\main\native\gstreamer\3rd_party\glib\glib-2.28.8\glib\gmain.c_
 
 Change line 3692, from
 
-      GSource *source = g_source_new (&g_timeout_funcs, sizeof (GTimeoutSource));
-    #ifdef GSTREAMER_LITE
-      if (source == NULL)
-          return NULL;
-    #endif // GSTREAMER_LITE
-      GTimeoutSource *timeout_source = (GTimeoutSource *)source;
+```C
+  GSource *source = g_source_new (&g_timeout_funcs, sizeof (GTimeoutSource));
+#ifdef GSTREAMER_LITE
+  if (source == NULL)
+      return NULL;
+#endif // GSTREAMER_LITE
+  GTimeoutSource *timeout_source = (GTimeoutSource *)source;
+```
 
 To
 
-      GSource *source = g_source_new (&g_timeout_funcs, sizeof (GTimeoutSource));
-      GTimeoutSource *timeout_source = (GTimeoutSource *)source;
-    #ifdef GSTREAMER_LITE
-      if (source == NULL)
-          return NULL;
-    #endif // GSTREAMER_LITE
+```C
+  GSource *source = g_source_new (&g_timeout_funcs, sizeof (GTimeoutSource));
+  GTimeoutSource *timeout_source = (GTimeoutSource *)source; // MOVE THIS LINE
+#ifdef GSTREAMER_LITE
+  if (source == NULL)
+      return NULL;
+#endif // GSTREAMER_LITE
+```
 
 (move variable declaration to the beginning; workaround for C89 limit in VC++ 2010)
 
-
-In _modules\media\src\main\native\gstreamer\gstreamer-lite\gstreamer\plugins\elements\gstqueue.c_
+###### _modules\media\src\main\native\gstreamer\gstreamer-lite\gstreamer\plugins\elements\gstqueue.c_
 
 Go the last function gst_queue_change_state() at the bottom of the file, add "{" and "}":
 
+```C
     { // ADD THIS BRACE
     GstStateChangeReturn ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
 
@@ -100,54 +104,74 @@ Go the last function gst_queue_change_state() at the bottom of the file, add "{"
     }
     return ret;
     } // ADD THIS BRACE
+```
 
 (marks the area as a new block from which the "ret" variable may be declared; also workaround for the same C89 limit)
 
 #### Build file changes
 
-In _buildSrc\win.gradle_, go to line 91, insert before the "if" block, in case the SDK directories are changed by scripts:
+###### _buildSrc\win.gradle_
 
-    WINDOWS_SDK_DIR = "C:/Program Files (x86)/Microsoft SDKs/Windows/v7.1"
-    WINDOWS_DXSDK_DIR = "C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)"
-    
-    if (WINDOWS_SDK_DIR == null || WINDOWS_SDK_DIR == "") {
-        throw new GradleException("FAIL: WINSDK_DIR not defined");
-    }
+go to line 91, insert before the "if" block, in case the SDK directories are changed by scripts:
 
-Copy _gradle.properties.template_ to _gradle.properties_, line 45, uncomment:
+```groovy
+WINDOWS_SDK_DIR = "C:/Program Files (x86)/Microsoft SDKs/Windows/v7.1"
+WINDOWS_DXSDK_DIR = "C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)"
 
-    COMPILE_WEBKIT = true
-    COMPILE_MEDIA = true
+if (WINDOWS_SDK_DIR == null || WINDOWS_SDK_DIR == "") {
+    throw new GradleException("FAIL: WINSDK_DIR not defined");
+}
+```
+
+###### _gradle.properties_
+
+copy _gradle.properties.template_ to _gradle.properties_, go to line 45, uncomment:
+
+```properties
+COMPILE_WEBKIT = true
+COMPILE_MEDIA = true
+```
 
 and line 62, uncomment:
 
-    BUILD_SRC_ZIP = true
+```properties
+BUILD_SRC_ZIP = true
+```
 
 #### Build!
 
 1. Start *Start Visual Studio x64 Win64 Command Prompt (2010)*
 2. Inside the above console, executes:
 
-    set DXSDK_DIR=C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)
-    set WINSDK_DIR=C:/Program Files (x86)/Microsoft SDKs/Windows/v7.1
+    *assume cygwin is at C:\cygwin64, replace with yours*
 
-    # assume cygwin is at C:\cygwin64, replace with yours
-    C:\cygwin64\bin\mintty.exe -i /Cygwin-Terminal.ico -
+    ```batch
+        set DXSDK_DIR=C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)
+        set WINSDK_DIR=C:/Program Files (x86)/Microsoft SDKs/Windows/v7.1
+        C:\cygwin64\bin\mintty.exe -i /Cygwin-Terminal.ico -
+    ```
+
 
 3. Inside the cygwin console, executes:
 
-    # assume ant is at C:\apache-ant-1.8.4, replace with yours
+    assume:
+
+        * gradle is at C:\gradle-1.8
+        * ant is at C:\apache-ant-1.8.4
+        * cmake is at C:\cmake-3.11.1-win64-x64
+    
+    note cmake path needs to be in front of all others in order to override cygwin's cmake, if it exists
+
+
+    ```bash
     export PATH=$PATH:/cygdrive/c/apache-ant-1.8.4/bin
-
-    # assume gradle is at C:\gradle-1.8, replace with yours
     export PATH=$PATH:/cygdrive/c/gradle-1.8/bin
-
-    # assume cmake is at C:\cmake-3.11.1-win64-x64, replace with yours.
     export PATH=/cygdrive/c/cmake-3.11.1-win64-x64/bin:$PATH
-    # note it needs to be in front in order to override cygwin's cmake, if it exists
+    ```
 
 4. cd to the rt directory, run gradle. Or step by step in case there are failures:
 
+    ```bash
     gradle tasks
     gradle base:build -x test
     gradle graphics:build -x test
@@ -165,5 +189,6 @@ and line 62, uncomment:
     # finalize everything
     gradle all -x test -x apps
     gradle src -x test
+    ```
 
-5. The result is at build\bundles\javafx-sdk-overlay.zip
+5. The result is at _build\bundles\javafx-sdk-overlay.zip_
